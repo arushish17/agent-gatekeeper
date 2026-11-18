@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+
+{% block title %}Register AI Agent{% endblock %}
+{% block page_heading %}Agent Registration{% endblock %}
+
+{% block content %}
+<div class="register-container">
+    <div class="page-intro">
+        <h2>Register New AI Agent</h2>
+        <p>
+            Onboard a customer-delegated autonomous AI agent into Wells Fargo's Gatekeeper registry.
+            Define explicit granular permissions and transaction limits adhering to the Principle of Least Privilege.
+        </p>
+    </div>
+
+    <div class="register-layout-grid">
+        <!-- Registration Form -->
+        <div class="card register-card">
+            <div class="card-header">
+                <h3 class="card-title">Agent Delegation Form</h3>
+                <span class="card-badge">Enrollment Portal</span>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('register_agent_view') }}" id="registerForm">
+                    <div class="form-row">
+                        <div class="form-group col-half">
+                            <label for="customer_id" class="form-label">Customer ID / Account ID <span class="req">*</span></label>
+                            <input type="text" id="customer_id" name="customer_id" class="form-control"
+                                   placeholder="e.g., CUST-78219" required>
+                        </div>
+                        <div class="form-group col-half">
+                            <label for="customer_name" class="form-label">Customer Full Name <span class="req">*</span></label>
+                            <input type="text" id="customer_name" name="customer_name" class="form-control"
+                                   placeholder="e.g., Sunita Verma" required>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="agent_name" class="form-label">AI Agent Identifier / Name <span class="req">*</span></label>
+                        <input type="text" id="agent_name" name="agent_name" class="form-control"
+                               placeholder="e.g., LedgerGenie AI" required>
+                        <span class="form-hint">Unique name identifying the client-side autonomous assistant.</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Permitted Banking Actions <span class="req">*</span></label>
+                        <div class="checkbox-group">
+                            {% for act in available_actions %}
+                                <label class="checkbox-label">
+                                    <input type="checkbox" name="permitted_actions" value="{{ act }}"
+                                           {% if act == 'View balance' %}checked{% endif %}>
+                                    <span class="checkbox-custom"></span>
+                                    <span class="checkbox-text">
+                                        <strong>{{ act }}</strong>
+                                        <small>{% if act == 'View balance' %}(Safe Read-Only Inquiry){% else %}(Financial Debit Action){% endif %}</small>
+                                    </span>
+                                </label>
+                            {% endfor %}
+                        </div>
+                        <span class="form-hint">Least Privilege: An agent attempting actions outside checked items will be strictly <strong>BLOCKED</strong> under Rule 7.</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="transaction_limit" class="form-label">Authorized Single Transaction Ceiling (₹ INR)</label>
+                        <div class="input-with-prefix">
+                            <span class="input-prefix">₹</span>
+                            <input type="number" step="100" min="0" id="transaction_limit" name="transaction_limit"
+                                   class="form-control" value="{{ default_limit }}">
+                        </div>
+                        <span class="form-hint">Default calibrated threshold: ₹10,000. Transactions above this value require customer step-up authorization.</span>
+                    </div>
+
+                    <div class="form-info-panel">
+                        <div class="info-row">
+                            <span>Generated Agent ID:</span>
+                            <strong class="mono text-blue">[Auto-generated on save: e.g. WF-AGT-104]</strong>
+                        </div>
+                        <div class="info-row">
+                            <span>Initial Authorization Status:</span>
+                            <span class="badge badge-allow">ACTIVE</span>
+                        </div>
+                        <div class="info-row">
+                            <span>Storage Destination:</span>
+                            <span class="mono">agents.json & audit_logs.json</span>
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="submit" class="btn-primary">
+                            <span>➕</span> Authorize & Register Agent
+                        </button>
+                        <a href="{{ url_for('manage_agents_view') }}" class="btn-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Guidance Side Panel -->
+        <div class="card guidance-card">
+            <div class="card-header">
+                <h3 class="card-title">Registration Governance</h3>
+                <span class="card-badge">Wells Fargo Policy</span>
+            </div>
+            <div class="card-body">
+                <div class="policy-note">
+                    <h4>Why Explicit Registration is Mandatory</h4>
+                    <p>
+                        In traditional web banking, APIs distinguish between authenticated users and anonymous visitors.
+                        With AI agents, the autonomous model holds delegated credentials. Rule 1 strictly blocks any
+                        unregistered agent to thwart credential-stuffing bots from executing unauthorized inquiries.
+                    </p>
+                </div>
+                <div class="policy-note">
+                    <h4>Preventing Zombie Access</h4>
+                    <p>
+                        Every registered agent receives a permanent record. If the customer later stops using the agent,
+                        the administrator or customer must use the <strong>Revoke Agent</strong> interface to invalidate
+                        the agent's credentials permanently.
+                    </p>
+                </div>
+                <div class="policy-note">
+                    <h4>Audit Trail Compliance</h4>
+                    <p>
+                        The registration event itself is timestamped and recorded in <code>audit_logs.json</code> to ensure
+                        non-repudiation and accountability under banking regulations.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

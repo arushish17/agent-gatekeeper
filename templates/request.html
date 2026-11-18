@@ -1,0 +1,195 @@
+{% extends "base.html" %}
+
+{% block title %}Check Agent Request{% endblock %}
+{% block page_heading %}Check Agent Request{% endblock %}
+
+{% block content %}
+<div class="request-page-container">
+    <div class="page-intro">
+        <h2>Evaluate Inbound Agent Request</h2>
+        <p>
+            Submit an autonomous AI agent's requested banking action to the Gatekeeper Decision Engine.
+            The engine evaluates the request against Wells Fargo's 8 security rules and determines whether to
+            <strong>ALLOW</strong>, <strong>ASK CUSTOMER</strong>, or <strong>BLOCK</strong>.
+        </p>
+    </div>
+
+    <!-- Quick Test Fill Shortcuts -->
+    <div class="test-shortcuts-bar">
+        <span class="shortcuts-title">⚡ Quick Autofill Scenarios:</span>
+        <button type="button" class="btn-chip" onclick="autofillForm('CUST-64166', 'FinancePilot AI', 'View balance', 0, 'Safe balance inquiry')">
+            Scenario 1: View Balance (ALLOW)
+        </button>
+        <button type="button" class="btn-chip" onclick="autofillForm('CUST-99999', 'RogueBotX', 'Transfer money', 5000, 'Unknown agent attack')">
+            Scenario 2: Unknown Agent (BLOCK)
+        </button>
+        <button type="button" class="btn-chip" onclick="autofillForm('CUST-64166', 'FinancePilot AI', 'Transfer money', 25000, 'Wire transfer above limit')">
+            Scenario 3: Over Limit ₹25,000 (ASK)
+        </button>
+        <button type="button" class="btn-chip" onclick="autofillForm('CUST-64166', 'FinancePilot AI', 'Pay a bill', 1200, 'Routine utility bill')">
+            Scenario 4: Sensitive ₹1,200 (ASK)
+        </button>
+        <button type="button" class="btn-chip" onclick="autofillForm('CUST-99042', 'SpendMaster Agent', 'View balance', 0, 'Revoked agent inquiry')">
+            Scenario 5: Revoked Agent (BLOCK)
+        </button>
+        <button type="button" class="btn-chip" onclick="autofillForm('CUST-88231', 'WealthBot Assist', 'Transfer money', 1000, 'Outside permissions')">
+            Scenario 6: Out of Scope (BLOCK)
+        </button>
+    </div>
+
+    <div class="request-layout-grid">
+        <!-- Form Panel -->
+        <div class="card request-form-card">
+            <div class="card-header">
+                <h3 class="card-title">Inbound Request Details</h3>
+                <span class="card-badge">Wells Fargo Rail</span>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('request_check') }}" id="requestForm">
+                    <div class="form-group">
+                        <label for="customer_id" class="form-label">Customer ID / Account Identifier <span class="req">*</span></label>
+                        <input type="text" id="customer_id" name="customer_id" class="form-control"
+                               placeholder="e.g., CUST-64166" required
+                               value="{{ result.customer_id if result else '' }}">
+                        <span class="form-hint">Must match customer profile in Wells Fargo core banking.</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="agent_name" class="form-label">AI Agent Name <span class="req">*</span></label>
+                        <input type="text" id="agent_name" name="agent_name" class="form-control"
+                               placeholder="e.g., FinancePilot AI" required
+                               value="{{ result.agent_name if result else '' }}">
+                        <span class="form-hint">Name of personal AI assistant delegated by customer.</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="action" class="form-label">Requested Banking Action <span class="req">*</span></label>
+                        <select id="action" name="action" class="form-control" required onchange="handleActionChange(this.value)">
+                            <option value="">-- Select Banking Action --</option>
+                            {% for act in actions %}
+                                <option value="{{ act }}" {% if result and result.requested_action == act %}selected{% endif %}>
+                                    {{ act }} {% if act == 'View balance' %}(Read-Only){% else %}(Sensitive Financial){% endif %}
+                                </option>
+                            {% endfor %}
+                        </select>
+                        <span class="form-hint">Available actions strictly limited to Wells Fargo supported rails.</span>
+                    </div>
+
+                    <div class="form-group" id="amountGroup">
+                        <label for="amount" class="form-label">Transaction Amount (₹ INR)</label>
+                        <div class="input-with-prefix">
+                            <span class="input-prefix">₹</span>
+                            <input type="number" step="0.01" min="0" id="amount" name="amount" class="form-control"
+                                   placeholder="0.00" value="{{ result.amount if result else '0' }}">
+                        </div>
+                        <span class="form-hint">Current default threshold: <strong>₹{{ "{:,.2f}".format(company.default_transaction_limit) }}</strong>.</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="description" class="form-label">Optional Request Context / Metadata</label>
+                        <textarea id="description" name="description" class="form-control" rows="2"
+                                  placeholder="e.g., Automated grocery bill payment scheduled by agent">{{ result.description if result else '' }}</textarea>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="submit" class="btn-primary btn-block">
+                            <span>🛡️</span> Submit & Evaluate Decision
+                        </button>
+                        <button type="reset" class="btn-secondary">Clear</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Evaluation Result Card -->
+        <div class="card request-result-card">
+            <div class="card-header">
+                <h3 class="card-title">Decision Engine Output</h3>
+                <span class="card-badge">Live Evaluation</span>
+            </div>
+            <div class="card-body">
+                {% if result %}
+                    <!-- Prominent Decision Banner -->
+                    <div class="decision-banner decision-{{ result.decision|lower|replace(' ', '-') }}">
+                        <div class="decision-badge-large">
+                            {% if result.decision == 'ALLOW' %}
+                                <span class="badge-icon">✅</span> ALLOW
+                            {% elif result.decision == 'ASK CUSTOMER' %}
+                                <span class="badge-icon">⚠️</span> ASK CUSTOMER
+                            {% else %}
+                                <span class="badge-icon">🛑</span> BLOCK
+                            {% endif %}
+                        </div>
+                        <div class="decision-rule-tag">
+                            <strong>{{ result.rule_number }}:</strong> {{ result.rule_name }}
+                        </div>
+                    </div>
+
+                    <!-- Decision Details Breakdown -->
+                    <div class="result-details-box">
+                        <div class="detail-row">
+                            <span class="detail-label">Reason for Decision:</span>
+                            <span class="detail-value detail-reason">{{ result.reason }}</span>
+                        </div>
+                        <div class="detail-grid">
+                            <div class="detail-cell">
+                                <span class="cell-label">Customer Name / ID</span>
+                                <span class="cell-val">{{ result.customer_name }} ({{ result.customer_id }})</span>
+                            </div>
+                            <div class="detail-cell">
+                                <span class="cell-label">Agent Name / ID</span>
+                                <span class="cell-val">{{ result.agent_name }} ({{ result.agent_id }})</span>
+                            </div>
+                            <div class="detail-cell">
+                                <span class="cell-label">Requested Action</span>
+                                <span class="cell-val">{{ result.requested_action }}</span>
+                            </div>
+                            <div class="detail-cell">
+                                <span class="cell-label">Transaction Amount</span>
+                                <span class="cell-val">₹{{ "{:,.2f}".format(result.amount) }}</span>
+                            </div>
+                            <div class="detail-cell">
+                                <span class="cell-label">Audit Request ID</span>
+                                <span class="cell-val mono">{{ result.request_id or 'SAVED' }}</span>
+                            </div>
+                            <div class="detail-cell">
+                                <span class="cell-label">Timestamp</span>
+                                <span class="cell-val">{{ result.timestamp or current_time }}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="result-audit-notice">
+                        <span>📝 This transaction decision was permanently recorded in <code>audit_logs.json</code>.</span>
+                    </div>
+                {% else %}
+                    <div class="result-placeholder">
+                        <div class="placeholder-icon">🛡️</div>
+                        <h4>Awaiting Inbound Request</h4>
+                        <p>Fill out the form on the left or click one of the quick autofill buttons above to evaluate an agent interaction.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function autofillForm(custId, agentName, action, amount, desc) {
+    document.getElementById('customer_id').value = custId;
+    document.getElementById('agent_name').value = agentName;
+    document.getElementById('action').value = action;
+    document.getElementById('amount').value = amount;
+    document.getElementById('description').value = desc;
+}
+
+function handleActionChange(val) {
+    const amtGroup = document.getElementById('amountGroup');
+    if (val === 'View balance') {
+        document.getElementById('amount').value = 0;
+    }
+}
+</script>
+{% endblock %}

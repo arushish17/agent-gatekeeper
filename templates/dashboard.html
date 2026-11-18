@@ -1,0 +1,214 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+{% block page_heading %}Executive Dashboard{% endblock %}
+
+{% block content %}
+<div class="dashboard-container">
+    <!-- Welcome Banner with Wells Fargo Branding -->
+    <div class="hero-banner">
+        <div class="hero-content">
+            <div class="hero-badge">ENTERPRISE GATEWAY PROTOTYPE</div>
+            <h2 class="hero-title">Wells Fargo AI Agent Gatekeeper</h2>
+            <p class="hero-subtitle">
+                Autonomous AI Agent Security, Permission Scoping, and Regulatory Revocation Governance.
+                Enforcing bank-grade boundaries between consumer AI models and core banking rails.
+            </p>
+            <div class="hero-meta">
+                <span class="meta-item"><strong>Student Enrolment:</strong> {{ enrolment_number }}</span>
+                <span class="meta-item"><strong>Institution:</strong> {{ company.name }} ({{ company.sector }})</span>
+                <span class="meta-item"><strong>Default Transaction Ceiling:</strong> ₹{{ "{:,.2f}".format(company.default_transaction_limit) }}</span>
+            </div>
+        </div>
+        <div class="hero-actions">
+            <a href="{{ url_for('request_check') }}" class="btn-primary">
+                <span>🛡️</span> Evaluate Request
+            </a>
+            <a href="{{ url_for('tests_view') }}" class="btn-secondary">
+                <span>🧪</span> Run 6 Test Scenarios
+            </a>
+        </div>
+    </div>
+
+    <!-- Metrics Cards Grid -->
+    <div class="stats-grid">
+        <!-- Total Registered Agents -->
+        <div class="stat-card">
+            <div class="stat-header">
+                <span class="stat-title">Total Agents</span>
+                <span class="stat-icon icon-blue">🤖</span>
+            </div>
+            <div class="stat-value">{{ metrics.total_agents }}</div>
+            <div class="stat-sub">Registered in system</div>
+        </div>
+
+        <!-- Active Agents -->
+        <div class="stat-card">
+            <div class="stat-header">
+                <span class="stat-title">Active Agents</span>
+                <span class="stat-icon icon-green">🟢</span>
+            </div>
+            <div class="stat-value text-green">{{ metrics.active_agents }}</div>
+            <div class="stat-sub">Authorized to interface</div>
+        </div>
+
+        <!-- Revoked Agents -->
+        <div class="stat-card">
+            <div class="stat-header">
+                <span class="stat-title">Revoked Agents</span>
+                <span class="stat-icon icon-red">🚫</span>
+            </div>
+            <div class="stat-value text-red">{{ metrics.revoked_agents }}</div>
+            <div class="stat-sub">Proof of revocation filed</div>
+        </div>
+
+        <!-- Total Requests -->
+        <div class="stat-card">
+            <div class="stat-header">
+                <span class="stat-title">Requests Processed</span>
+                <span class="stat-icon icon-purple">⚡</span>
+            </div>
+            <div class="stat-value">{{ metrics.total_requests }}</div>
+            <div class="stat-sub">Audit-logged evaluations</div>
+        </div>
+
+        <!-- ALLOW Count -->
+        <div class="stat-card stat-allow">
+            <div class="stat-header">
+                <span class="stat-title">ALLOW Decisions</span>
+                <span class="stat-icon icon-green">✅</span>
+            </div>
+            <div class="stat-value text-green">{{ metrics.allow_count }}</div>
+            <div class="stat-sub">Safe read-only actions</div>
+        </div>
+
+        <!-- ASK CUSTOMER Count -->
+        <div class="stat-card stat-ask">
+            <div class="stat-header">
+                <span class="stat-title">ASK CUSTOMER</span>
+                <span class="stat-icon icon-orange">⚠️</span>
+            </div>
+            <div class="stat-value text-orange">{{ metrics.ask_count }}</div>
+            <div class="stat-sub">Step-up verification required</div>
+        </div>
+
+        <!-- BLOCK Count -->
+        <div class="stat-card stat-block">
+            <div class="stat-header">
+                <span class="stat-title">BLOCK Decisions</span>
+                <span class="stat-icon icon-red">🛑</span>
+            </div>
+            <div class="stat-value text-red">{{ metrics.block_count }}</div>
+            <div class="stat-sub">Unknown / Revoked / Violations</div>
+        </div>
+    </div>
+
+    <!-- Quick Operations & Recent Activity Split -->
+    <div class="dashboard-split">
+        <!-- Quick Evaluate / System Overview Card -->
+        <div class="card panel-quick-actions">
+            <div class="card-header">
+                <h3 class="card-title">Security Gateway Operations</h3>
+                <span class="card-badge">Wells Fargo Rail</span>
+            </div>
+            <div class="card-body">
+                <p class="panel-desc">
+                    Under Wells Fargo's security policy, automated agents are strictly governed by least privilege.
+                    Revoked and unverified agents are permanently rejected before financial operations can execute.
+                </p>
+                <div class="quick-links-grid">
+                    <a href="{{ url_for('request_check') }}" class="quick-link-box">
+                        <span class="ql-icon">🔍</span>
+                        <div class="ql-info">
+                            <strong>Check Agent Request</strong>
+                            <span>Evaluate live AI requests with Rule Engine</span>
+                        </div>
+                    </a>
+                    <a href="{{ url_for('register_agent_view') }}" class="quick-link-box">
+                        <span class="ql-icon">➕</span>
+                        <div class="ql-info">
+                            <strong>Register New Agent</strong>
+                            <span>Configure customer scope and limits</span>
+                        </div>
+                    </a>
+                    <a href="{{ url_for('revoke_agent_view') }}" class="quick-link-box">
+                        <span class="ql-icon">🚫</span>
+                        <div class="ql-info">
+                            <strong>Revoke AI Access</strong>
+                            <span>Prove revocation and preserve audit trail</span>
+                        </div>
+                    </a>
+                    <a href="{{ url_for('tests_view') }}" class="quick-link-box">
+                        <span class="ql-icon">🧪</span>
+                        <div class="ql-info">
+                            <strong>Test All 6 Scenarios</strong>
+                            <span>Execute automated assignment unit suite</span>
+                        </div>
+                    </a>
+                </div>
+
+                <div class="policy-callout">
+                    <div class="callout-icon">💡</div>
+                    <div class="callout-text">
+                        <strong>Wells Fargo Mandate:</strong> Customers must prove that third-party AI agents have been
+                        permanently revoked to absolve fraudulent liability. Revoked agents remain in <code>agents.json</code>
+                        with timestamped proof.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Audit Activity -->
+        <div class="card panel-recent-logs">
+            <div class="card-header">
+                <h3 class="card-title">Recent Gatekeeper Activity</h3>
+                <a href="{{ url_for('audit_logs_view') }}" class="card-header-link">View Full Audit Log &rarr;</a>
+            </div>
+            <div class="card-body">
+                {% if recent_logs %}
+                    <div class="activity-list">
+                        {% for log in recent_logs %}
+                            <div class="activity-item">
+                                <div class="activity-status">
+                                    {% if log.decision == 'ALLOW' %}
+                                        <span class="badge badge-allow">ALLOW</span>
+                                    {% elif log.decision == 'ASK CUSTOMER' %}
+                                        <span class="badge badge-ask">ASK CUSTOMER</span>
+                                    {% elif log.decision == 'BLOCK' %}
+                                        <span class="badge badge-block">BLOCK</span>
+                                    {% elif log.decision == 'REVOKED' %}
+                                        <span class="badge badge-revoked">REVOKED</span>
+                                    {% else %}
+                                        <span class="badge badge-info">{{ log.decision }}</span>
+                                    {% endif %}
+                                </div>
+                                <div class="activity-details">
+                                    <div class="activity-main">
+                                        <strong>{{ log.agent_name }}</strong>
+                                        <span class="activity-action">{{ log.requested_action }}</span>
+                                        {% if log.amount > 0 %}
+                                            <span class="activity-amount">(₹{{ "{:,.2f}".format(log.amount) }})</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="activity-sub">
+                                        <span>Customer: {{ log.customer_id }}</span>
+                                        <span class="dot">•</span>
+                                        <span>{{ log.rule_number or 'LOG' }}: {{ log.rule_name or 'Event' }}</span>
+                                    </div>
+                                </div>
+                                <div class="activity-time">
+                                    {{ log.timestamp }}
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="empty-state">
+                        <p>No activity logged yet. Submit a request to evaluate!</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

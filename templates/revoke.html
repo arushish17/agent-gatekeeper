@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+
+{% block title %}Revoke Agent{% endblock %}
+{% block page_heading %}Revoke AI Agent Access{% endblock %}
+
+{% block content %}
+<div class="revoke-container">
+    <div class="page-intro">
+        <h2>Regulatory AI Agent Revocation Gateway</h2>
+        <p>
+            Under Wells Fargo's security policy (as documented in <em>American Banker</em>), customers must maintain
+            verifiable proof that third-party AI agents have had their access terminated. This portal formally executes
+            revocation, generates an immutable timestamp, and seals the record against any future transactions.
+        </p>
+    </div>
+
+    <div class="revoke-grid">
+        <!-- Revoke Execution Form -->
+        <div class="card revoke-card">
+            <div class="card-header">
+                <h3 class="card-title">Execute Revocation Order</h3>
+                <span class="card-badge">Compliance Action</span>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('revoke_agent_view') }}" id="revokeForm">
+                    <div class="form-group">
+                        <label for="agent_id" class="form-label">Select Agent to Revoke <span class="req">*</span></label>
+                        <select id="agent_id" name="agent_id" class="form-control" required onchange="populateAgentDetails(this.value)">
+                            <option value="">-- Choose Active Agent --</option>
+                            {% for ag in agents %}
+                                {% if ag.status == 'ACTIVE' %}
+                                    <option value="{{ ag.agent_id }}"
+                                            data-name="{{ ag.agent_name }}"
+                                            data-cust-name="{{ ag.customer_name }}"
+                                            data-cust-id="{{ ag.customer_id }}"
+                                            data-reg="{{ ag.registration_timestamp }}"
+                                            data-limit="{{ ag.transaction_limit }}"
+                                            data-perms="{{ ag.permitted_actions|join(', ') }}">
+                                        {{ ag.agent_id }} — {{ ag.agent_name }} ({{ ag.customer_name }} / {{ ag.customer_id }})
+                                    </option>
+                                {% endif %}
+                            {% endfor %}
+                        </select>
+                        <span class="form-hint">Only active agents can be selected. Revoked agents are already locked.</span>
+                    </div>
+
+                    <!-- Dynamic Preview Card -->
+                    <div id="agentPreview" class="agent-preview-card" style="display: none;">
+                        <h4>Agent Identity Verification</h4>
+                        <div class="preview-grid">
+                            <div><strong>Agent Name:</strong> <span id="prevAgentName"></span></div>
+                            <div><strong>Customer:</strong> <span id="prevCustomer"></span></div>
+                            <div><strong>Registered On:</strong> <span id="prevRegDate" class="mono"></span></div>
+                            <div><strong>Active Scope:</strong> <span id="prevPerms"></span></div>
+                            <div><strong>Ceiling:</strong> ₹<span id="prevLimit"></span></div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="reason" class="form-label">Audit Reason for Revocation <span class="req">*</span></label>
+                        <textarea id="reason" name="reason" class="form-control" rows="3" required
+                                  placeholder="e.g., Customer formal request to disconnect autonomous budgeting co-pilot; token invalidated."></textarea>
+                        <span class="form-hint">This text forms legal proof of revocation in regulatory audit compliance.</span>
+                    </div>
+
+                    <div class="alert alert-danger" style="margin-top: 15px;">
+                        <span class="alert-icon">🛑</span>
+                        <span class="alert-text">
+                            <strong>RULE 2 ENFORCEMENT:</strong> Once revoked, any subsequent request from this agent
+                            will be unconditionally <strong>BLOCKED</strong>. Revocation is permanent.
+                        </span>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="submit" class="btn-danger btn-block">
+                            <span>🚫</span> Execute Permanent Revocation
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Academic & Industry Context Box -->
+        <div class="card context-card">
+            <div class="card-header">
+                <h3 class="card-title">The Wells Fargo Precedent</h3>
+                <span class="card-badge">American Banker Case</span>
+            </div>
+            <div class="card-body">
+                <div class="case-study-box">
+                    <h4>Why Banks Demand Proof of Revocation</h4>
+                    <p>
+                        In 2024, reporting revealed that Wells Fargo enacted strict policies regarding AI financial
+                        aggregators and delegated bots. When a customer signs up for an AI tool that reads balances or
+                        makes payments, the bank remains liable for fraudulent transfers under Electronic Fund Transfer Act
+                        (Regulation E) unless it can demonstrate that an authorized session was compromised or the customer
+                        failed to revoke access.
+                    </p>
+                    <p>
+                        To resolve disputes, Wells Fargo requires customers to prove they explicitly revoked access.
+                        Agent Gatekeeper solves this by creating an immutable, timestamped record in <code>agents.json</code>
+                        and logging the revocation event in <code>audit_logs.json</code>.
+                    </p>
+                </div>
+
+                <div class="audit-guarantee">
+                    <span class="shield-icon">🛡️</span>
+                    <div>
+                        <strong>Immutable Record Retention:</strong>
+                        <p>Our storage engine never deletes revoked records. Status transitions to <code>REVOKED</code>,
+                        capturing the exact UTC/local second of revocation.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function populateAgentDetails(agentId) {
+    const select = document.getElementById('agent_id');
+    const selectedOption = select.options[select.selectedIndex];
+    const preview = document.getElementById('agentPreview');
+
+    if (!agentId) {
+        preview.style.display = 'none';
+        return;
+    }
+
+    document.getElementById('prevAgentName').innerText = selectedOption.getAttribute('data-name');
+    document.getElementById('prevCustomer').innerText = selectedOption.getAttribute('data-cust-name') + ' (' + selectedOption.getAttribute('data-cust-id') + ')';
+    document.getElementById('prevRegDate').innerText = selectedOption.getAttribute('data-reg');
+    document.getElementById('prevPerms').innerText = selectedOption.getAttribute('data-perms');
+    document.getElementById('prevLimit').innerText = parseFloat(selectedOption.getAttribute('data-limit')).toLocaleString('en-IN', {minimumFractionDigits: 2});
+
+    preview.style.display = 'block';
+}
+</script>
+{% endblock %}

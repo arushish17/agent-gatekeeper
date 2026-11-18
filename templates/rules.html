@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+
+{% block title %}Rules & Policies{% endblock %}
+{% block page_heading %}Security Rules & Governance Policies{% endblock %}
+
+{% block content %}
+<div class="rules-container">
+    <div class="page-intro">
+        <h2>Wells Fargo Decision Engine Policy Framework</h2>
+        <p>
+            Agent Gatekeeper applies 8 deterministic business rules to evaluate incoming AI agent requests.
+            These rules are formulated to protect retail deposits, prevent automated fraud, and comply with banking
+            regulations while allowing safe autonomous customer interactions.
+        </p>
+    </div>
+
+    <!-- Transaction Limit Callout Card -->
+    <div class="card limit-highlight-card">
+        <div class="limit-banner">
+            <div class="limit-badge">CONFIGURED SAFETY CEILING</div>
+            <div class="limit-amount">₹{{ "{:,.2f}".format(limit) }}</div>
+            <div class="limit-desc-box">
+                <h4>Why ₹10,000 Was Chosen as the Initial Threshold</h4>
+                <p>
+                    {{ explanation }}
+                </p>
+                <div class="limit-points">
+                    <div class="lp-item">
+                        <span class="lp-bullet">🛡️</span>
+                        <span><strong>Containment Boundary:</strong> If an autonomous agent hallucinates or suffers prompt injection, the maximum single exposure is strictly bounded.</span>
+                    </div>
+                    <div class="lp-item">
+                        <span class="lp-bullet">📱</span>
+                        <span><strong>Operational Utility:</strong> Allows common utility bill payments (electricity, water, broadband) to proceed with simple customer step-up confirmation without blocking automation entirely.</span>
+                    </div>
+                    <div class="lp-item">
+                        <span class="lp-bullet">🏦</span>
+                        <span><strong>Regulatory Alignment:</strong> Aligns with Reserve Bank of India (RBI) and Federal Reserve guidelines requiring step-up multi-factor authorization for high-velocity electronic debits.</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Business Rules Cards Grid -->
+    <div class="rules-grid">
+        {% for r in rules %}
+            <div class="card rule-card">
+                <div class="rule-card-header">
+                    <div class="rule-num-badge">{{ r.number }}</div>
+                    <h3 class="rule-card-title">{{ r.title }}</h3>
+                    <div class="rule-target-badge">
+                        {% if 'ALLOW' in r.target_decision %}
+                            <span class="badge badge-allow">{{ r.target_decision }}</span>
+                        {% elif 'ASK' in r.target_decision %}
+                            <span class="badge badge-ask">{{ r.target_decision }}</span>
+                        {% elif 'BLOCK' in r.target_decision %}
+                            <span class="badge badge-block">{{ r.target_decision }}</span>
+                        {% else %}
+                            <span class="badge badge-info">{{ r.target_decision }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="rule-card-body">
+                    <div class="rule-section">
+                        <span class="rule-section-label">Policy Specification (What happens):</span>
+                        <p class="rule-desc">{{ r.description }}</p>
+                    </div>
+                    <div class="rule-section bg-subtle">
+                        <span class="rule-section-label">Business Rationale (Why it matters to Wells Fargo):</span>
+                        <p class="rule-reason">{{ r.business_reason }}</p>
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+
+    <!-- Governance Summary Box -->
+    <div class="card governance-summary-card">
+        <div class="card-header">
+            <h3 class="card-title">Decision Priority Pipeline</h3>
+            <span class="card-badge">Strict Precedence Order</span>
+        </div>
+        <div class="card-body">
+            <div class="pipeline-steps">
+                <div class="pipeline-step">
+                    <div class="step-num">1</div>
+                    <div class="step-content">
+                        <strong>Identity Verification</strong>
+                        <p>Is agent registered for customer? (RULE 1 &rarr; BLOCK)</p>
+                    </div>
+                </div>
+                <div class="pipeline-arrow">&rarr;</div>
+                <div class="pipeline-step">
+                    <div class="step-num">2</div>
+                    <div class="step-content">
+                        <strong>Revocation Check</strong>
+                        <p>Has agent access been terminated? (RULE 2 &rarr; BLOCK)</p>
+                    </div>
+                </div>
+                <div class="pipeline-arrow">&rarr;</div>
+                <div class="pipeline-step">
+                    <div class="step-num">3</div>
+                    <div class="step-content">
+                        <strong>Active Status Check</strong>
+                        <p>Is authorization current? (RULE 3 &rarr; BLOCK)</p>
+                    </div>
+                </div>
+                <div class="pipeline-arrow">&rarr;</div>
+                <div class="pipeline-step">
+                    <div class="step-num">4</div>
+                    <div class="step-content">
+                        <strong>Scope Validation</strong>
+                        <p>Is action within permissions? (RULE 7 &rarr; BLOCK)</p>
+                    </div>
+                </div>
+                <div class="pipeline-arrow">&rarr;</div>
+                <div class="pipeline-step">
+                    <div class="step-num">5</div>
+                    <div class="step-content">
+                        <strong>Risk Evaluation</strong>
+                        <p>Read-only (RULE 4 &rarr; ALLOW) vs. Financial (RULE 5 & 6 &rarr; ASK CUSTOMER)</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

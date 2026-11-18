@@ -1,0 +1,260 @@
+{% extends "base.html" %}
+
+{% block title %}Audit Logs{% endblock %}
+{% block page_heading %}Regulatory Audit Logs{% endblock %}
+
+{% block content %}
+<div class="audit-page-container">
+    <div class="page-intro-split">
+        <div>
+            <h2>Persistent Regulatory Audit Trail</h2>
+            <p>
+                Every AI agent request, decision, registration, and revocation is permanently timestamped
+                and saved in <code>audit_logs.json</code>. Provides complete non-repudiation and bank-grade traceability.
+            </p>
+        </div>
+        <div>
+            <span class="badge badge-info" style="font-size: 0.9rem; padding: 8px 14px;">
+                Total Events: <strong>{{ logs|length }}</strong>
+            </span>
+        </div>
+    </div>
+
+    <!-- Search & Filter Controls -->
+    <div class="card filter-card">
+        <div class="card-body">
+            <div class="filter-grid">
+                <div class="filter-item">
+                    <label for="searchQuery" class="filter-label">Search Keywords</label>
+                    <input type="text" id="searchQuery" class="form-control"
+                           placeholder="Search customer, agent, or request ID..." onkeyup="filterAuditLogs()">
+                </div>
+                <div class="filter-item">
+                    <label for="filterDecision" class="filter-label">Filter Decision</label>
+                    <select id="filterDecision" class="form-control" onchange="filterAuditLogs()">
+                        <option value="ALL">All Decisions / Events</option>
+                        <option value="ALLOW">ALLOW</option>
+                        <option value="ASK CUSTOMER">ASK CUSTOMER</option>
+                        <option value="BLOCK">BLOCK</option>
+                        <option value="REVOKED">REVOKED</option>
+                        <option value="REGISTERED">REGISTERED</option>
+                    </select>
+                </div>
+                <div class="filter-item">
+                    <label for="filterAgent" class="filter-label">Filter by Agent</label>
+                    <select id="filterAgent" class="form-control" onchange="filterAuditLogs()">
+                        <option value="ALL">All Agents</option>
+                        {% for ag in agents %}
+                            <option value="{{ ag.agent_name }}">{{ ag.agent_name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="filter-item">
+                    <label for="filterDate" class="filter-label">Filter by Date</label>
+                    <input type="date" id="filterDate" class="form-control" onchange="filterAuditLogs()">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Audit Table Card -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Immutable Event Records</h3>
+            <span class="card-badge">Rule 8 Compliance</span>
+        </div>
+        <div class="card-body">
+            {% if logs %}
+                <div class="table-responsive">
+                    <table class="data-table" id="auditTable">
+                        <thead>
+                            <tr>
+                                <th>Timestamp</th>
+                                <th>Request ID</th>
+                                <th>Decision</th>
+                                <th>Agent</th>
+                                <th>Customer</th>
+                                <th>Action</th>
+                                <th>Amount</th>
+                                <th>Rule</th>
+                                <th>Details</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for log in logs %}
+                                <tr class="audit-row"
+                                    data-decision="{{ log.decision }}"
+                                    data-agent="{{ log.agent_name }}"
+                                    data-date="{{ log.timestamp[:10] }}"
+                                    data-search="{{ log.request_id }} {{ log.customer_id }} {{ log.customer_name }} {{ log.agent_name }} {{ log.requested_action }} {{ log.reason }}">
+                                    <td class="mono sub-text">{{ log.timestamp }}</td>
+                                    <td class="mono font-bold">{{ log.request_id }}</td>
+                                    <td>
+                                        {% if log.decision == 'ALLOW' %}
+                                            <span class="badge badge-allow">ALLOW</span>
+                                        {% elif log.decision == 'ASK CUSTOMER' %}
+                                            <span class="badge badge-ask">ASK CUSTOMER</span>
+                                        {% elif log.decision == 'BLOCK' %}
+                                            <span class="badge badge-block">BLOCK</span>
+                                        {% elif log.decision == 'REVOKED' %}
+                                            <span class="badge badge-revoked">REVOKED</span>
+                                        {% elif log.decision == 'REGISTERED' %}
+                                            <span class="badge badge-allow">REGISTERED</span>
+                                        {% else %}
+                                            <span class="badge badge-info">{{ log.decision }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td><strong>{{ log.agent_name }}</strong></td>
+                                    <td>
+                                        <div>{{ log.customer_name or log.customer_id }}</div>
+                                        <div class="sub-text mono">{{ log.customer_id }}</div>
+                                    </td>
+                                    <td>
+                                        <span class="badge badge-action">{{ log.requested_action }}</span>
+                                    </td>
+                                    <td class="mono">
+                                        {% if log.amount and log.amount > 0 %}
+                                            ₹{{ "{:,.2f}".format(log.amount) }}
+                                        {% else %}
+                                            —
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="rule-ref">{{ log.rule_number or 'RULE 8' }}</span>
+                                    </td>
+                                    <td>
+                                        <button type="button" class="btn-secondary-sm"
+                                                onclick='showLogDetail({{ log|tojson|safe }})'>
+                                            View
+                                        </button>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="empty-state">
+                    <p>No audit events recorded yet.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Modal for Viewing Detailed Log Record -->
+<div class="modal-overlay" id="logModal" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Audit Record Inspection</h3>
+            <button type="button" class="modal-close" onclick="closeLogModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="log-detail-grid">
+                <div class="log-detail-item">
+                    <span class="label">Request ID:</span>
+                    <span class="val mono font-bold" id="m_req_id"></span>
+                </div>
+                <div class="log-detail-item">
+                    <span class="label">Event Timestamp:</span>
+                    <span class="val mono" id="m_timestamp"></span>
+                </div>
+                <div class="log-detail-item">
+                    <span class="label">Decision:</span>
+                    <span class="val" id="m_decision"></span>
+                </div>
+                <div class="log-detail-item">
+                    <span class="label">Rule Invoked:</span>
+                    <span class="val" id="m_rule"></span>
+                </div>
+                <div class="log-detail-item">
+                    <span class="label">Customer Account:</span>
+                    <span class="val" id="m_customer"></span>
+                </div>
+                <div class="log-detail-item">
+                    <span class="label">AI Agent:</span>
+                    <span class="val" id="m_agent"></span>
+                </div>
+                <div class="log-detail-item">
+                    <span class="label">Requested Action:</span>
+                    <span class="val" id="m_action"></span>
+                </div>
+                <div class="log-detail-item">
+                    <span class="label">Transaction Amount:</span>
+                    <span class="val mono" id="m_amount"></span>
+                </div>
+            </div>
+
+            <div class="log-reason-box" style="margin-top: 15px;">
+                <label class="label">Decision Engine Reasoning / Policy Grounds:</label>
+                <div class="reason-content" id="m_reason"></div>
+            </div>
+
+            <div class="log-meta-box" id="m_desc_box" style="margin-top: 10px; display: none;">
+                <label class="label">Agent Context / Description:</label>
+                <div class="reason-content" id="m_desc"></div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn-secondary" onclick="closeLogModal()">Close</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function filterAuditLogs() {
+    const search = document.getElementById('searchQuery').value.toLowerCase();
+    const decision = document.getElementById('filterDecision').value;
+    const agent = document.getElementById('filterAgent').value;
+    const date = document.getElementById('filterDate').value;
+
+    const rows = document.querySelectorAll('.audit-row');
+
+    rows.forEach(row => {
+        const rowSearch = (row.getAttribute('data-search') || '').toLowerCase();
+        const rowDecision = row.getAttribute('data-decision');
+        const rowAgent = row.getAttribute('data-agent');
+        const rowDate = row.getAttribute('data-date');
+
+        const matchSearch = !search || rowSearch.includes(search);
+        const matchDecision = (decision === 'ALL') || (rowDecision === decision);
+        const matchAgent = (agent === 'ALL') || (rowAgent === agent);
+        const matchDate = !date || (rowDate === date);
+
+        if (matchSearch && matchDecision && matchAgent && matchDate) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+}
+
+function showLogDetail(log) {
+    document.getElementById('m_req_id').innerText = log.request_id || 'N/A';
+    document.getElementById('m_timestamp').innerText = log.timestamp || 'N/A';
+    document.getElementById('m_decision').innerHTML = `<span class="badge badge-${(log.decision || '').toLowerCase().replace(' ', '-')}">${log.decision}</span>`;
+    document.getElementById('m_rule').innerText = (log.rule_number ? log.rule_number + ': ' : '') + (log.rule_name || 'System Event');
+    document.getElementById('m_customer').innerText = (log.customer_name || 'N/A') + ' (' + (log.customer_id || 'N/A') + ')';
+    document.getElementById('m_agent').innerText = (log.agent_name || 'N/A') + ' (' + (log.agent_id || 'N/A') + ')';
+    document.getElementById('m_action').innerText = log.requested_action || 'N/A';
+    document.getElementById('m_amount').innerText = log.amount ? '₹' + parseFloat(log.amount).toLocaleString('en-IN', {minimumFractionDigits: 2}) : '₹0.00';
+    document.getElementById('m_reason').innerText = log.reason || 'No specific rationale recorded.';
+
+    const descBox = document.getElementById('m_desc_box');
+    if (log.description) {
+        document.getElementById('m_desc').innerText = log.description;
+        descBox.style.display = 'block';
+    } else {
+        descBox.style.display = 'none';
+    }
+
+    document.getElementById('logModal').style.display = 'flex';
+}
+
+function closeLogModal() {
+    document.getElementById('logModal').style.display = 'none';
+}
+</script>
+{% endblock %}

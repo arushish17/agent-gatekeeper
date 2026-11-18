@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Agent Gatekeeper{% endblock %} | Wells Fargo</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <!-- Main Stylesheet -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    {% block extra_head %}{% endblock %}
+</head>
+<body class="app-body">
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+        <div class="sidebar-brand">
+            <div class="brand-logo-badge">
+                <span class="brand-wf-icon">WF</span>
+            </div>
+            <div class="brand-text">
+                <h1 class="brand-title">Agent Gatekeeper</h1>
+                <p class="brand-subtitle">Wells Fargo Security Rail</p>
+            </div>
+        </div>
+
+        <div class="student-pill">
+            <span class="pill-label">STUDENT ID</span>
+            <span class="pill-value">{{ enrolment_number }}</span>
+        </div>
+
+        <nav class="sidebar-nav">
+            <ul class="nav-list">
+                <li class="nav-item">
+                    <a href="{{ url_for('index') }}" class="nav-link {% if active_page == 'dashboard' %}active{% endif %}">
+                        <span class="nav-icon">📊</span>
+                        <span class="nav-text">Dashboard</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('request_check') }}" class="nav-link {% if active_page == 'request' %}active{% endif %}">
+                        <span class="nav-icon">🛡️</span>
+                        <span class="nav-text">Check Agent Request</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('register_agent_view') }}" class="nav-link {% if active_page == 'register' %}active{% endif %}">
+                        <span class="nav-icon">➕</span>
+                        <span class="nav-text">Register Agent</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('manage_agents_view') }}" class="nav-link {% if active_page == 'agents' %}active{% endif %}">
+                        <span class="nav-icon">👥</span>
+                        <span class="nav-text">Manage Agents</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('revoke_agent_view') }}" class="nav-link {% if active_page == 'revoke' %}active{% endif %}">
+                        <span class="nav-icon">🚫</span>
+                        <span class="nav-text">Revoke Agent</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('audit_logs_view') }}" class="nav-link {% if active_page == 'audit_logs' %}active{% endif %}">
+                        <span class="nav-icon">📜</span>
+                        <span class="nav-text">Audit Logs</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('rules_view') }}" class="nav-link {% if active_page == 'rules' %}active{% endif %}">
+                        <span class="nav-icon">⚖️</span>
+                        <span class="nav-text">Rules & Policies</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('tests_view') }}" class="nav-link {% if active_page == 'tests' %}active{% endif %}">
+                        <span class="nav-icon">🧪</span>
+                        <span class="nav-text">Test Scenarios</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('about_view') }}" class="nav-link {% if active_page == 'about' %}active{% endif %}">
+                        <span class="nav-icon">ℹ️</span>
+                        <span class="nav-text">About Project</span>
+                    </a>
+                </li>
+            </ul>
+        </nav>
+
+        <div class="sidebar-footer">
+            <a href="{{ url_for('download_report') }}" class="btn-report-download">
+                <span class="btn-icon">📥</span> Download PDF Report
+            </a>
+            <div class="sidebar-system-status">
+                <span class="status-dot"></span>
+                <span>Gatekeeper Engine: Online</span>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <div class="main-wrapper">
+        <!-- Top Navbar -->
+        <header class="top-header">
+            <div class="header-left">
+                <button class="mobile-toggle" id="mobileMenuToggle" aria-label="Toggle navigation">☰</button>
+                <div class="header-breadcrumb">
+                    <span class="company-tag">{{ company.name }} ({{ company.sector }})</span>
+                    <span class="separator">/</span>
+                    <span class="page-title">{% block page_heading %}Security Dashboard{% endblock %}</span>
+                </div>
+            </div>
+            <div class="header-right">
+                <div class="live-clock" id="liveClock">
+                    <span class="clock-icon">🕒</span>
+                    <span class="clock-time">{{ current_time }}</span>
+                </div>
+                <div class="enrolment-badge">
+                    <span class="badge-prefix">Enrolment:</span>
+                    <strong>{{ enrolment_number }}</strong>
+                </div>
+            </div>
+        </header>
+
+        <!-- Flash Alert Messages -->
+        <div class="alerts-container">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }}">
+                            <span class="alert-icon">
+                                {% if category == 'success' %}✅{% elif category == 'error' %}⚠️{% else %}ℹ️{% endif %}
+                            </span>
+                            <span class="alert-text">{{ message }}</span>
+                            <button class="alert-close" onclick="this.parentElement.remove()">✕</button>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+        </div>
+
+        <!-- Page Dynamic Body -->
+        <main class="page-content">
+            {% block content %}{% endblock %}
+        </main>
+
+        <!-- Footer -->
+        <footer class="app-footer">
+            <div class="footer-left">
+                <span>Agent Gatekeeper &copy; 2026</span>
+                <span class="divider">|</span>
+                <span>Target Architecture: Wells Fargo Enterprise Security Gateway</span>
+            </div>
+            <div class="footer-right">
+                <span>Student Enrolment: <strong>{{ enrolment_number }}</strong></span>
+                <span class="divider">|</span>
+                <span>Academic Assignment Prototype</span>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Scripts -->
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    {% block extra_scripts %}{% endblock %}
+</body>
+</html>

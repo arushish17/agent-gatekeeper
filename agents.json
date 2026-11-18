@@ -1,0 +1,61 @@
+[
+  {
+    "agent_id": "WF-AGT-101",
+    "customer_id": "CUST-64166",
+    "customer_name": "Rajesh Kumar",
+    "agent_name": "FinancePilot AI",
+    "registration_timestamp": "2026-11-10 10:30:00",
+    "permitted_actions": [
+      "View balance",
+      "Pay a bill",
+      "Transfer money"
+    ],
+    "transaction_limit": 10000.0,
+    "status": "ACTIVE",
+    "revoked_at": null,
+    "revocation_reason": null
+  },
+  {
+    "agent_id": "WF-AGT-102",
+    "customer_id": "CUST-88231",
+    "customer_name": "Priya Sharma",
+    "agent_name": "WealthBot Assist",
+    "registration_timestamp": "2026-11-11 14:15:20",
+    "permitted_actions": [
+      "View balance"
+    ],
+    "transaction_limit": 5000.0,
+    "status": "ACTIVE",
+    "revoked_at": null,
+    "revocation_reason": null
+  },
+  {
+    "agent_id": "WF-AGT-103",
+    "customer_id": "CUST-99042",
+    "customer_name": "Amitabh Sen",
+    "agent_name": "SpendMaster Agent",
+    "registration_timestamp": "2026-11-05 09:00:00",
+    "permitted_actions": [
+      "View balance",
+      "Transfer money"
+    ],
+    "transaction_limit": 10000.0,
+    "status": "REVOKED",
+    "revoked_at": "2026-11-12 16:45:10",
+    "revocation_reason": "Customer security advisory: AI credentials suspected of third-party exposure"
+  },
+  {
+    "agent_id": "WF-AGT-104",
+    "customer_id": "CUST-TEST-01",
+    "customer_name": "Test Customer",
+    "agent_name": "DemoAssistant",
+    "registration_timestamp": "2026-11-18 18:56:50",
+    "permitted_actions": [
+      "View balance"
+    ],
+    "transaction_limit": 10000.0,
+    "status": "REVOKED",
+    "revoked_at": "2026-11-18 19:05:56",
+    "revocation_reason": "security"
+  }
+]

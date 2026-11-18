@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Agents{% endblock %}
+{% block page_heading %}Registered AI Agents{% endblock %}
+
+{% block content %}
+<div class="manage-agents-container">
+    <div class="page-intro-split">
+        <div>
+            <h2>Manage AI Agent Authorizations</h2>
+            <p>
+                View all registered customer AI agents, their configured permissions, and active/revoked lifecycle status.
+                Revoked agents remain permanently recorded to satisfy Wells Fargo proof-of-revocation compliance.
+            </p>
+        </div>
+        <div>
+            <a href="{{ url_for('register_agent_view') }}" class="btn-primary">
+                <span>➕</span> Register New Agent
+            </a>
+        </div>
+    </div>
+
+    <!-- Agent Records Card -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Authorized Agent Directory</h3>
+            <span class="card-badge">{{ agents|length }} Agents Total</span>
+        </div>
+        <div class="card-body">
+            {% if agents %}
+                <div class="table-responsive">
+                    <table class="data-table" id="agentsTable">
+                        <thead>
+                            <tr>
+                                <th>Agent ID</th>
+                                <th>AI Agent Name</th>
+                                <th>Customer Account</th>
+                                <th>Permitted Actions</th>
+                                <th>Limit</th>
+                                <th>Status</th>
+                                <th>Registration Date</th>
+                                <th>Revocation Details</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for ag in agents %}
+                                <tr class="{% if ag.status == 'REVOKED' %}row-revoked{% endif %}">
+                                    <td class="mono font-bold">{{ ag.agent_id }}</td>
+                                    <td>
+                                        <div class="agent-title-cell">
+                                            <span class="agent-avatar">🤖</span>
+                                            <div>
+                                                <strong>{{ ag.agent_name }}</strong>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div><strong>{{ ag.customer_name }}</strong></div>
+                                        <div class="sub-text mono">{{ ag.customer_id }}</div>
+                                    </td>
+                                    <td>
+                                        <div class="perms-tag-group">
+                                            {% for perm in ag.permitted_actions %}
+                                                <span class="badge badge-perm">{{ perm }}</span>
+                                            {% endfor %}
+                                        </div>
+                                    </td>
+                                    <td class="mono">
+                                        ₹{{ "{:,.2f}".format(ag.transaction_limit) }}
+                                    </td>
+                                    <td>
+                                        {% if ag.status == 'ACTIVE' %}
+                                            <span class="badge badge-allow badge-pulse">● ACTIVE</span>
+                                        {% else %}
+                                            <span class="badge badge-block">🚫 REVOKED</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="sub-text mono">
+                                        {{ ag.registration_timestamp }}
+                                    </td>
+                                    <td>
+                                        {% if ag.status == 'REVOKED' %}
+                                            <div class="revocation-proof">
+                                                <div class="rev-date mono"><strong>Date:</strong> {{ ag.revoked_at }}</div>
+                                                <div class="rev-reason"><em>{{ ag.revocation_reason }}</em></div>
+                                            </div>
+                                        {% else %}
+                                            <span class="text-muted">— Active —</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if ag.status == 'ACTIVE' %}
+                                            <button type="button" class="btn-danger-sm"
+                                                    onclick="openRevokeModal('{{ ag.agent_id }}', '{{ ag.agent_name }}', '{{ ag.customer_name }}', '{{ ag.customer_id }}')">
+                                                🚫 Revoke
+                                            </button>
+                                        {% else %}
+                                            <span class="revoked-lock" title="Revocation is permanent under banking regulations">
+                                                🔒 Locked
+                                            </span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="empty-state">
+                    <p>No agents registered yet. Click 'Register New Agent' above to add one.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Modal for Revocation Confirmation -->
+<div class="modal-overlay" id="revokeModal" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Confirm AI Agent Revocation</h3>
+            <button type="button" class="modal-close" onclick="closeRevokeModal()">&times;</button>
+        </div>
+        <form method="POST" action="{{ url_for('revoke_agent_view') }}">
+            <div class="modal-body">
+                <input type="hidden" id="modal_agent_id" name="agent_id">
+
+                <div class="alert alert-warning">
+                    <span class="alert-icon">⚠️</span>
+                    <span class="alert-text">
+                        <strong>PERMANENT ACTION:</strong> Once revoked, this AI agent cannot perform any actions.
+                        All subsequent banking requests will return <strong>BLOCK</strong> under Rule 2.
+                    </span>
+                </div>
+
+                <div class="agent-summary-box">
+                    <div><strong>Agent ID:</strong> <span id="modal_agent_id_display" class="mono"></span></div>
+                    <div><strong>Agent Name:</strong> <span id="modal_agent_name"></span></div>
+                    <div><strong>Customer:</strong> <span id="modal_customer_name"></span> (<span id="modal_customer_id" class="mono"></span>)</div>
+                </div>
+
+                <div class="form-group" style="margin-top: 15px;">
+                    <label for="modal_reason" class="form-label">Mandatory Reason for Revocation <span class="req">*</span></label>
+                    <textarea id="modal_reason" name="reason" class="form-control" rows="3" required
+                              placeholder="e.g., Customer filed dispute; suspected credential leakage on third-party AI co-pilot"></textarea>
+                    <span class="form-hint">Stored permanently in agents.json and audit log as verifiable proof of revocation.</span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-secondary" onclick="closeRevokeModal()">Cancel</button>
+                <button type="submit" class="btn-danger">
+                    <span>🚫</span> Confirm & Revoke Permanently
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function openRevokeModal(agentId, agentName, custName, custId) {
+    document.getElementById('modal_agent_id').value = agentId;
+    document.getElementById('modal_agent_id_display').innerText = agentId;
+    document.getElementById('modal_agent_name').innerText = agentName;
+    document.getElementById('modal_customer_name').innerText = custName;
+    document.getElementById('modal_customer_id').innerText = custId;
+    document.getElementById('revokeModal').style.display = 'flex';
+}
+
+function closeRevokeModal() {
+    document.getElementById('revokeModal').style.display = 'none';
+}
+</script>
+{% endblock %}

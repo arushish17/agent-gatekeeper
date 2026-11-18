@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+
+{% block title %}About Project{% endblock %}
+{% block page_heading %}About Agent Gatekeeper{% endblock %}
+
+{% block content %}
+<div class="about-container">
+    <div class="page-intro">
+        <h2>Agent Gatekeeper Academic Overview</h2>
+        <p>
+            A high-assurance security and permission-management system protecting retail banking rails
+            from unauthorized, unvetted, or compromised autonomous AI agents.
+        </p>
+    </div>
+
+    <!-- Student & Project Identification -->
+    <div class="card meta-highlight-card">
+        <div class="meta-highlight-grid">
+            <div class="meta-col">
+                <span class="meta-label">STUDENT ENROLMENT NUMBER</span>
+                <span class="meta-value text-blue">{{ enrolment_number }}</span>
+                <span class="meta-note">Last digit <strong>6</strong> selects <strong>Bank (Wells Fargo)</strong></span>
+            </div>
+            <div class="meta-col">
+                <span class="meta-label">TARGET ENTERPRISE</span>
+                <span class="meta-value">{{ company.name }}</span>
+                <span class="meta-note">Financial Services & Retail Banking</span>
+            </div>
+            <div class="meta-col">
+                <span class="meta-label">TECHNOLOGY STACK</span>
+                <span class="meta-value">Python 3 + Flask</span>
+                <span class="meta-note">JSON Persistence + Unittest + ReportLab</span>
+            </div>
+            <div class="meta-col">
+                <span class="meta-label">REPORT STATUS</span>
+                <a href="{{ url_for('download_report') }}" class="btn-primary-sm" style="margin-top: 5px;">
+                    📄 Download 2-Page PDF
+                </a>
+                <span class="meta-note">Generated strictly within 2-page limit</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Architectural Deep-Dive Grid -->
+    <div class="about-grid">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">Three-Tier Architecture</h3>
+                <span class="card-badge">Design Pattern</span>
+            </div>
+            <div class="card-body">
+                <div class="arch-tier">
+                    <div class="tier-badge">1. Presentation Tier</div>
+                    <p>
+                        Responsive web interface built with modern semantic HTML5, custom utility CSS3,
+                        and asynchronous JavaScript (AJAX). Enforces dark navy visual branding with Wells Fargo red accents.
+                    </p>
+                </div>
+                <div class="arch-tier">
+                    <div class="tier-badge">2. Application & Decision Tier</div>
+                    <p>
+                        Lightweight Flask controller routing incoming HTTP requests and mediating between web forms
+                        and <code>decision_engine.py</code>. Implements the 8 security policies in strict precedence order.
+                    </p>
+                </div>
+                <div class="arch-tier">
+                    <div class="tier-badge">3. Persistence & Audit Tier</div>
+                    <p>
+                        Zero-cloud local storage managed by <code>storage.py</code>. Retains registered agents in
+                        <code>agents.json</code> and immutable access records in <code>audit_logs.json</code> across server restarts.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">Regulatory Context: Wells Fargo Precedent</h3>
+                <span class="card-badge">American Banker</span>
+            </div>
+            <div class="card-body">
+                <p>
+                    As reported by <em>American Banker</em>, Wells Fargo pioneered banking security requirements
+                    mandating that customers maintain verifiable proof when revoking access for third-party AI agents.
+                </p>
+                <p>
+                    Without verifiable revocation records, banks remain exposed to unauthorized debit disputes under
+                    federal consumer protection statutes (Electronic Fund Transfer Act / Regulation E).
+                </p>
+                <div class="callout-pill">
+                    <span>⚖️ <strong>Regulatory Resolution:</strong> When an administrator clicks <em>Revoke</em> in
+                    Agent Gatekeeper, the system transitions the agent status to <code>REVOKED</code>, records an immutable
+                    timestamp, logs the event to <code>audit_logs.json</code>, and blocks all future transactions under Rule 2.</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Project File Breakdown Table -->
+    <div class="card" style="margin-top: 20px;">
+        <div class="card-header">
+            <h3 class="card-title">System Modular File Breakdown</h3>
+            <span class="card-badge">Repository Layout</span>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>File Name</th>
+                            <th>Role & Purpose</th>
+                            <th>Key Functions / Classes</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="mono font-bold">app.py</td>
+                            <td>Flask application server and web controller</td>
+                            <td><code>index()</code>, <code>request_check()</code>, <code>register_agent_view()</code>, <code>revoke_agent_view()</code>, <code>api_run_tests()</code></td>
+                        </tr>
+                        <tr>
+                            <td class="mono font-bold">decision_engine.py</td>
+                            <td>Core policy engine evaluating rules 1–8 deterministically</td>
+                            <td><code>evaluate_request()</code>, <code>BUSINESS_RULES</code> matrix</td>
+                        </tr>
+                        <tr>
+                            <td class="mono font-bold">storage.py</td>
+                            <td>JSON persistence manager for agents and audit records</td>
+                            <td><code>register_agent()</code>, <code>revoke_agent()</code>, <code>log_audit_event()</code>, <code>get_dashboard_metrics()</code></td>
+                        </tr>
+                        <tr>
+                            <td class="mono font-bold">generate_report.py</td>
+                            <td>ReportLab generator producing strictly 2-page executive PDF</td>
+                            <td><code>build_pdf_report()</code>, <code>NumberedCanvas</code></td>
+                        </tr>
+                        <tr>
+                            <td class="mono font-bold">tests/test_decision_engine.py</td>
+                            <td>Automated test suite validating all 6 assignment scenarios</td>
+                            <td><code>run_assignment_scenarios()</code>, <code>TestDecisionEngine</code></td>
+                        </tr>
+                        <tr>
+                            <td class="mono font-bold">agents.json</td>
+                            <td>Persistent database of registered and revoked AI agents</td>
+                            <td>JSON array of agent profiles with timestamps & permissions</td>
+                        </tr>
+                        <tr>
+                            <td class="mono font-bold">audit_logs.json</td>
+                            <td>Immutable append-only ledger of all decisions and events</td>
+                            <td>JSON array of evaluated requests with UUID request IDs</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
