@@ -43,3 +43,6 @@ Thumbs.db
 
 # Dynamic test caches
 .cache/
+
+# Local backup files
+storage_backup.py

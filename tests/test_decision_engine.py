@@ -1,8 +1,9 @@
+
 """
-tests/test_decision_engine.py - Automated Unit & Integration Tests for Agent Gatekeeper
-Implements the six required assignment test scenarios against the actual decision engine.
-Can be executed via standard unittest/pytest and invoked programmatically by Flask web route.
-Ensures complete test data isolation without modifying production agents.json or audit_logs.json.
+Automated Unit and Integration Tests for Agent Gatekeeper.
+
+Runs the six required assignment scenarios in isolated temporary storage.
+Also tests the additional bill-payment and money-transfer policy conditions.
 """
 
 import json
@@ -11,7 +12,6 @@ import sys
 import tempfile
 import unittest
 
-# Ensure project root is in sys.path
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
@@ -21,14 +21,8 @@ from decision_engine import evaluate_request
 
 
 def run_assignment_scenarios():
-    """
-    Executes all six required test cases deterministically in a temporary isolated
-    sandbox without modifying permanent customer records in agents.json or audit_logs.json.
-    
-    Returns:
-        list of dict: Detailed execution results for each test scenario.
-    """
-    # Define dedicated test agents in a clean sandbox context
+    """Run the six required assignment scenarios in isolated storage."""
+
     test_agents = [
         {
             "agent_id": "TEST-AGT-001",
@@ -36,8 +30,11 @@ def run_assignment_scenarios():
             "customer_name": "Test Customer Alpha",
             "agent_name": "FinanceActiveBot",
             "registration_timestamp": "2026-11-14 09:00:00",
-            "permitted_actions": ["View balance", "Pay a bill", "Transfer money"],
+            "permitted_actions": [
+                "View balance", "Pay a bill", "Transfer money"
+            ],
             "transaction_limit": 10000.0,
+            "bill_payment_pre_authorized": True,
             "status": "ACTIVE",
             "revoked_at": None,
             "revocation_reason": None
@@ -50,6 +47,7 @@ def run_assignment_scenarios():
             "registration_timestamp": "2026-11-14 09:15:00",
             "permitted_actions": ["View balance"],
             "transaction_limit": 10000.0,
+            "bill_payment_pre_authorized": False,
             "status": "ACTIVE",
             "revoked_at": None,
             "revocation_reason": None
@@ -62,192 +60,239 @@ def run_assignment_scenarios():
             "registration_timestamp": "2026-11-01 10:00:00",
             "permitted_actions": ["View balance", "Transfer money"],
             "transaction_limit": 10000.0,
+            "bill_payment_pre_authorized": False,
             "status": "REVOKED",
             "revoked_at": "2026-11-10 14:00:00",
-            "revocation_reason": "Customer security audit - third party AI revocation proof filed"
+            "revocation_reason": "Customer security audit",
         }
     ]
 
     orig_agents_path = storage.AGENTS_FILE
     orig_audit_path = storage.AUDIT_LOGS_FILE
-
     results = []
 
     with tempfile.TemporaryDirectory() as tmp_dir:
-        tmp_agents_file = os.path.join(tmp_dir, "test_agents.json")
-        tmp_audit_file = os.path.join(tmp_dir, "test_audit_logs.json")
+        agents_file = os.path.join(tmp_dir, "test_agents.json")
+        audit_file = os.path.join(tmp_dir, "test_audit_logs.json")
 
-        with open(tmp_agents_file, "w", encoding="utf-8") as f:
-            json.dump(test_agents, f, indent=2)
+        with open(agents_file, "w", encoding="utf-8") as file:
+            json.dump(test_agents, file, indent=2)
 
         try:
-            storage.set_storage_paths(tmp_agents_file, tmp_audit_file)
+            storage.set_storage_paths(agents_file, audit_file)
 
-            # -------------------------------------------------------------
-            # TEST 1: Known registered active agent performing read-only action
-            # -------------------------------------------------------------
-            res1 = evaluate_request(
-                customer_id="CUST-TEST-100",
-                agent_name="FinanceActiveBot",
-                action="View balance",
-                amount=0.0,
-                description="Automated balance check before daily financial brief",
-                record_audit=False
-            )
-            passed1 = (res1["decision"] == "ALLOW")
-            results.append({
-                "test_number": 1,
-                "title": "Registered Active Agent - Read-Only Action",
-                "scenario": "Known registered active agent (FinanceActiveBot) performing safe 'View balance'.",
-                "inputs": {"customer_id": "CUST-TEST-100", "agent_name": "FinanceActiveBot", "action": "View balance", "amount": 0.0},
-                "expected": "ALLOW",
-                "actual": res1["decision"],
-                "rule": f"{res1['rule_number']}: {res1['rule_name']}",
-                "reason": res1["reason"],
-                "status": "PASS" if passed1 else "FAIL"
-            })
+            scenarios = [
+                {
+                    "customer_id": "CUST-TEST-100",
+                    "agent_name": "FinanceActiveBot",
+                    "action": "View balance",
+                    "amount": 0.0,
+                    "description": "Automated balance check",
+                    "expected": "ALLOW",
+                    "title": "Registered Active Agent - Read-Only Action",
+                    "scenario": "Active registered agent performing a permitted balance check."
+                },
+                {
+                    "customer_id": "CUST-TEST-999",
+                    "agent_name": "ShadowHackerAI",
+                    "action": "Transfer money",
+                    "amount": 500.0,
+                    "description": "Unregistered agent transfer attempt",
+                    "expected": "BLOCK",
+                    "title": "Unknown Agent Attempt",
+                    "scenario": "Unknown agent attempting a money transfer."
+                },
+                {
+                    "customer_id": "CUST-TEST-100",
+                    "agent_name": "FinanceActiveBot",
+                    "action": "Transfer money",
+                    "amount": 15000.0,
+                    "description": "High-value vendor transfer",
+                    "expected": "ASK CUSTOMER",
+                    "title": "Transaction Exceeding Threshold",
+                    "scenario": "Active agent attempting a ₹15,000 money transfer."
+                },
+                {
+                    "customer_id": "CUST-TEST-100",
+                    "agent_name": "FinanceActiveBot",
+                    "action": "Pay a bill",
+                    "amount": 2500.0,
+                    "description": "Pre-authorised electric utility payment",
+                    "expected": "ALLOW",
+                    "title": "Pre-authorised Bill Payment Below Limit",
+                    "scenario": "Active agent making a ₹2,500 bill payment with explicit pre-authorisation."
+                },
+                {
+                    "customer_id": "CUST-TEST-300",
+                    "agent_name": "RevokedZombieBot",
+                    "action": "View balance",
+                    "amount": 0.0,
+                    "description": "Revoked agent balance check attempt",
+                    "expected": "BLOCK",
+                    "title": "Revoked Agent Block Enforcement",
+                    "scenario": "Revoked agent attempting a read-only inquiry."
+                },
+                {
+                    "customer_id": "CUST-TEST-200",
+                    "agent_name": "ReadOnlyBot",
+                    "action": "Transfer money",
+                    "amount": 500.0,
+                    "description": "Out-of-scope transfer attempt",
+                    "expected": "BLOCK",
+                    "title": "Action Outside Permitted Scope",
+                    "scenario": "Read-only agent attempting a money transfer."
+                }
+            ]
 
-            # -------------------------------------------------------------
-            # TEST 2: Unknown agent attempting an action
-            # -------------------------------------------------------------
-            res2 = evaluate_request(
-                customer_id="CUST-TEST-999",
-                agent_name="ShadowHackerAI",
-                action="Transfer money",
-                amount=500.0,
-                description="Attempted balance drain from unverified autonomous bot",
-                record_audit=False
-            )
-            passed2 = (res2["decision"] == "BLOCK")
-            results.append({
-                "test_number": 2,
-                "title": "Unknown Agent Attempt",
-                "scenario": "Unknown agent (ShadowHackerAI) attempting money transfer for unregistered customer.",
-                "inputs": {"customer_id": "CUST-TEST-999", "agent_name": "ShadowHackerAI", "action": "Transfer money", "amount": 500.0},
-                "expected": "BLOCK",
-                "actual": res2["decision"],
-                "rule": f"{res2['rule_number']}: {res2['rule_name']}",
-                "reason": res2["reason"],
-                "status": "PASS" if passed2 else "FAIL"
-            })
+            for number, scenario in enumerate(scenarios, start=1):
+                result = evaluate_request(
+                    customer_id=scenario["customer_id"],
+                    agent_name=scenario["agent_name"],
+                    action=scenario["action"],
+                    amount=scenario["amount"],
+                    description=scenario["description"],
+                    record_audit=False
+                )
 
-            # -------------------------------------------------------------
-            # TEST 3: Registered active agent transaction ABOVE configured limit
-            # -------------------------------------------------------------
-            res3 = evaluate_request(
-                customer_id="CUST-TEST-100",
-                agent_name="FinanceActiveBot",
-                action="Transfer money",
-                amount=15000.0,  # Exceeds ₹10,000 threshold
-                description="High-value international vendor wire transfer",
-                record_audit=False
-            )
-            passed3 = (res3["decision"] == "ASK CUSTOMER")
-            results.append({
-                "test_number": 3,
-                "title": "Transaction Exceeding Threshold (Above Limit)",
-                "scenario": "Registered active agent attempting ₹15,000 transfer, exceeding ₹10,000 limit.",
-                "inputs": {"customer_id": "CUST-TEST-100", "agent_name": "FinanceActiveBot", "action": "Transfer money", "amount": 15000.0},
-                "expected": "ASK CUSTOMER",
-                "actual": res3["decision"],
-                "rule": f"{res3['rule_number']}: {res3['rule_name']}",
-                "reason": res3["reason"],
-                "status": "PASS" if passed3 else "FAIL"
-            })
+                passed = result["decision"] == scenario["expected"]
 
-            # -------------------------------------------------------------
-            # TEST 4: Registered active agent transaction BELOW configured limit
-            # -------------------------------------------------------------
-            res4 = evaluate_request(
-                customer_id="CUST-TEST-100",
-                agent_name="FinanceActiveBot",
-                action="Pay a bill",
-                amount=2500.0,  # Below ₹10,000 threshold, but sensitive financial operation
-                description="Routine electric utility payment",
-                record_audit=False
-            )
-            passed4 = (res4["decision"] == "ASK CUSTOMER")
-            results.append({
-                "test_number": 4,
-                "title": "Sensitive Action Below Limit (Mandatory Customer Approval)",
-                "scenario": "Registered active agent attempting ₹2,500 bill payment (sensitive action below limit).",
-                "inputs": {"customer_id": "CUST-TEST-100", "agent_name": "FinanceActiveBot", "action": "Pay a bill", "amount": 2500.0},
-                "expected": "ASK CUSTOMER",
-                "actual": res4["decision"],
-                "rule": f"{res4['rule_number']}: {res4['rule_name']}",
-                "reason": res4["reason"],
-                "status": "PASS" if passed4 else "FAIL"
-            })
-
-            # -------------------------------------------------------------
-            # TEST 5: Revoked agent attempting an action
-            # -------------------------------------------------------------
-            res5 = evaluate_request(
-                customer_id="CUST-TEST-300",
-                agent_name="RevokedZombieBot",
-                action="View balance",
-                amount=0.0,
-                description="Revoked agent attempting read-only balance check",
-                record_audit=False
-            )
-            passed5 = (res5["decision"] == "BLOCK")
-            results.append({
-                "test_number": 5,
-                "title": "Revoked Agent Block Enforcement",
-                "scenario": "Permanently revoked agent (RevokedZombieBot) attempting even a read-only inquiry.",
-                "inputs": {"customer_id": "CUST-TEST-300", "agent_name": "RevokedZombieBot", "action": "View balance", "amount": 0.0},
-                "expected": "BLOCK",
-                "actual": res5["decision"],
-                "rule": f"{res5['rule_number']}: {res5['rule_name']}",
-                "reason": res5["reason"],
-                "status": "PASS" if passed5 else "FAIL"
-            })
-
-            # -------------------------------------------------------------
-            # TEST 6: Action outside agent's registered permissions (Least Privilege)
-            # -------------------------------------------------------------
-            res6 = evaluate_request(
-                customer_id="CUST-TEST-200",
-                agent_name="ReadOnlyBot",
-                action="Transfer money",
-                amount=500.0,
-                description="Agent registered exclusively for 'View balance' attempting 'Transfer money'",
-                record_audit=False
-            )
-            passed6 = (res6["decision"] == "BLOCK")
-            results.append({
-                "test_number": 6,
-                "title": "Action Outside Permitted Scope (Least Privilege)",
-                "scenario": "Active agent registered only for 'View balance' attempting 'Transfer money'.",
-                "inputs": {"customer_id": "CUST-TEST-200", "agent_name": "ReadOnlyBot", "action": "Transfer money", "amount": 500.0},
-                "expected": "BLOCK",
-                "actual": res6["decision"],
-                "rule": f"{res6['rule_number']}: {res6['rule_name']}",
-                "reason": res6["reason"],
-                "status": "PASS" if passed6 else "FAIL"
-            })
+                results.append({
+                    "test_number": number,
+                    "title": scenario["title"],
+                    "scenario": scenario["scenario"],
+                    "inputs": {
+                        "customer_id": scenario["customer_id"],
+                        "agent_name": scenario["agent_name"],
+                        "action": scenario["action"],
+                        "amount": scenario["amount"]
+                    },
+                    "expected": scenario["expected"],
+                    "actual": result["decision"],
+                    "rule": (
+                        f"{result['rule_number']}: {result['rule_name']}"
+                    ),
+                    "reason": result["reason"],
+                    "status": "PASS" if passed else "FAIL"
+                })
 
         finally:
-            # Restore original storage file paths
             storage.set_storage_paths(orig_agents_path, orig_audit_path)
 
     return results
 
 
 class TestDecisionEngine(unittest.TestCase):
-    """Unittest test suite executing the 6 core scenarios."""
+    """Tests for the six assignment scenarios and additional policy rules."""
+
+    def setUp(self):
+        self.original_agents_path = storage.AGENTS_FILE
+        self.original_audit_path = storage.AUDIT_LOGS_FILE
+        self.temp_dir = tempfile.TemporaryDirectory()
+
+        self.agents_file = os.path.join(
+            self.temp_dir.name, "agents.json"
+        )
+        self.audit_file = os.path.join(
+            self.temp_dir.name, "audit_logs.json"
+        )
+
+        agents = [
+            {
+                "agent_id": "TEST-PREAUTH",
+                "customer_id": "CUST-PREAUTH",
+                "customer_name": "Preauthorised Customer",
+                "agent_name": "PreauthorisedBot",
+                "permitted_actions": [
+                    "View balance", "Pay a bill", "Transfer money"
+                ],
+                "transaction_limit": 10000.0,
+                "bill_payment_pre_authorized": True,
+                "status": "ACTIVE"
+            },
+            {
+                "agent_id": "TEST-NO-PREAUTH",
+                "customer_id": "CUST-NO-PREAUTH",
+                "customer_name": "Customer Without Preauthorisation",
+                "agent_name": "RegularBot",
+                "permitted_actions": [
+                    "View balance", "Pay a bill", "Transfer money"
+                ],
+                "transaction_limit": 10000.0,
+                "bill_payment_pre_authorized": False,
+                "status": "ACTIVE"
+            }
+        ]
+
+        with open(self.agents_file, "w", encoding="utf-8") as file:
+            json.dump(agents, file, indent=2)
+
+        storage.set_storage_paths(self.agents_file, self.audit_file)
+
+    def tearDown(self):
+        storage.set_storage_paths(
+            self.original_agents_path,
+            self.original_audit_path
+        )
+        self.temp_dir.cleanup()
 
     def test_all_six_scenarios(self):
         results = run_assignment_scenarios()
+
         self.assertEqual(len(results), 6)
-        for res in results:
-            with self.subTest(scenario=res["title"]):
+
+        for result in results:
+            with self.subTest(scenario=result["title"]):
                 self.assertEqual(
-                    res["actual"],
-                    res["expected"],
-                    f"Test {res['test_number']} Failed: Expected {res['expected']}, Got {res['actual']}. Reason: {res['reason']}"
+                    result["actual"],
+                    result["expected"],
+                    (
+                        f"Test {result['test_number']} failed: "
+                        f"Expected {result['expected']}, "
+                        f"got {result['actual']}. "
+                        f"Reason: {result['reason']}"
+                    )
                 )
-                self.assertEqual(res["status"], "PASS")
+                self.assertEqual(result["status"], "PASS")
+
+    def test_bill_payment_without_pre_authorisation_asks_customer(self):
+        result = evaluate_request(
+            "CUST-NO-PREAUTH",
+            "RegularBot",
+            "Pay a bill",
+            2500.0,
+            record_audit=False
+        )
+        self.assertEqual(result["decision"], "ASK CUSTOMER")
+
+    def test_pre_authorised_bill_payment_within_limit_is_allowed(self):
+        result = evaluate_request(
+            "CUST-PREAUTH",
+            "PreauthorisedBot",
+            "Pay a bill",
+            2500.0,
+            record_audit=False
+        )
+        self.assertEqual(result["decision"], "ALLOW")
+
+    def test_pre_authorised_bill_payment_above_limit_asks_customer(self):
+        result = evaluate_request(
+            "CUST-PREAUTH",
+            "PreauthorisedBot",
+            "Pay a bill",
+            12000.0,
+            record_audit=False
+        )
+        self.assertEqual(result["decision"], "ASK CUSTOMER")
+
+    def test_money_transfer_within_limit_still_asks_customer(self):
+        result = evaluate_request(
+            "CUST-PREAUTH",
+            "PreauthorisedBot",
+            "Transfer money",
+            500.0,
+            record_audit=False
+        )
+        self.assertEqual(result["decision"], "ASK CUSTOMER")
 
 
 if __name__ == "__main__":

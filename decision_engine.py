@@ -1,105 +1,99 @@
+
 """
-decision_engine.py - Core Security & Policy Decision Engine for Agent Gatekeeper
-Evaluates incoming AI agent requests against Wells Fargo security policies.
-Produces deterministic decisions: ALLOW, ASK CUSTOMER, or BLOCK.
+Core Security and Policy Decision Engine for Agent Gatekeeper.
+Evaluates AI agent requests and returns ALLOW, ASK CUSTOMER, or BLOCK.
 """
 
 import storage
 
-# Canonical Business Rules Definition for Wells Fargo Banking Domain
+
 BUSINESS_RULES = [
     {
         "number": "RULE 1",
         "title": "Unknown Agent Block",
-        "description": "If an AI agent is not registered for the customer, immediately BLOCK the request.",
-        "business_reason": (
-            "Prevents unauthorized, rogue, or unverified autonomous entities from interfacing "
-            "with customer bank accounts, eliminating credential stuffing and synthetic identity attacks."
-        ),
+        "description": "Unregistered agents are blocked immediately.",
+        "business_reason": "Only registered agents may access customer banking actions.",
         "target_decision": "BLOCK"
     },
     {
         "number": "RULE 2",
         "title": "Revoked Agent Block",
-        "description": "If an AI agent has been revoked, BLOCK every request regardless of action, amount, or history.",
-        "business_reason": (
-            "Enforces strict adherence to Wells Fargo policy mandating provable, permanent revocation "
-            "of customer-delegated AI credentials to eliminate latent liability and zombie access."
-        ),
+        "description": "Revoked agents are blocked regardless of action or amount.",
+        "business_reason": "Revocation prevents further use of delegated access.",
         "target_decision": "BLOCK"
     },
     {
         "number": "RULE 3",
-        "title": "Registered & Active Authorization",
-        "description": "Only verified agents in an ACTIVE status may proceed to policy evaluation.",
-        "business_reason": (
-            "Guarantees that suspended, expired, or pending agents cannot execute commands or query records."
-        ),
+        "title": "Registered and Active Authorization",
+        "description": "Only registered agents with ACTIVE status may proceed.",
+        "business_reason": "Inactive agents must not access banking services.",
         "target_decision": "BLOCK if not ACTIVE"
     },
     {
         "number": "RULE 4",
-        "title": "Read-Only Actions (Low-Risk Delegation)",
-        "description": "Permit safe, read-only inquiries (e.g., 'View balance') if the agent is registered, active, and holds permission.",
-        "business_reason": (
-            "Enables genuine utility for financial dashboarding and automated budgeting while exposing zero capital to transactional risk."
-        ),
+        "title": "Read-Only Actions",
+        "description": "Permitted read-only inquiries are allowed for active agents.",
+        "business_reason": "Read-only actions do not initiate financial debits.",
         "target_decision": "ALLOW"
     },
     {
         "number": "RULE 5",
-        "title": "Customer Confirmation for Sensitive Actions",
-        "description": "Sensitive financial actions (e.g., 'Pay a bill', 'Transfer money') require step-up customer approval.",
-        "business_reason": (
-            "Precludes unauthorized automated debiting. AI agents may prepare transactions, but final execution requires the customer's affirmative consent."
+        "title": "Pre-authorised Bill Payments",
+        "description": (
+            "Bill payments up to ₹10,000 are allowed only when the customer "
+            "has explicitly pre-authorised bill payments."
         ),
-        "target_decision": "ASK CUSTOMER"
+        "business_reason": (
+            "Explicit customer consent allows limited routine bill payments "
+            "without requiring confirmation for every transaction."
+        ),
+        "target_decision": "ALLOW when pre-authorised; otherwise ASK CUSTOMER"
     },
     {
         "number": "RULE 6",
-        "title": "Transaction Limit Threshold",
-        "description": "Any transaction exceeding the configured threshold (₹10,000) or individual agent limit mandates ASK CUSTOMER.",
+        "title": "Transaction Limit and Customer Confirmation",
+        "description": (
+            "Bill payments above ₹10,000 or above the agent's configured "
+            "limit require customer confirmation. All money transfers "
+            "require customer confirmation."
+        ),
         "business_reason": (
-            "Establishes a strict safety cap against catastrophic automated loss or malicious prompt injection drains."
+            "Higher-value transactions and money transfers require "
+            "additional customer oversight."
         ),
         "target_decision": "ASK CUSTOMER"
     },
     {
         "number": "RULE 7",
         "title": "Permission Scope Enforcement",
-        "description": "If an agent requests an action outside its registered permissions, BLOCK the request.",
-        "business_reason": (
-            "Applies the Principle of Least Privilege (PoLP). An agent authorized strictly for balance tracking cannot attempt fund transfers."
-        ),
+        "description": "Actions outside the agent's registered permissions are blocked.",
+        "business_reason": "Enforces the Principle of Least Privilege.",
         "target_decision": "BLOCK"
     },
     {
         "number": "RULE 8",
-        "title": "Auditability & Immutability",
-        "description": "Every evaluation, decision, revocation, and registration must be logged with an immutable timestamp and rule reference.",
-        "business_reason": (
-            "Provides non-repudiation and regulatory compliance with banking oversight bodies (such as RBI, CFPB, and OCC guidelines)."
-        ),
+        "title": "Auditability",
+        "description": "Every request decision is recorded in the audit log.",
+        "business_reason": "Maintains a timestamped record of system decisions.",
         "target_decision": "LOGGED"
     }
 ]
 
 
-def evaluate_request(customer_id, agent_name, action, amount=0.0, description="", record_audit=True):
+def evaluate_request(
+    customer_id,
+    agent_name,
+    action,
+    amount=0.0,
+    description="",
+    record_audit=True
+):
     """
-    Evaluates an AI agent's request against Wells Fargo business rules.
-    
-    Parameters:
-        customer_id (str): Customer ID or name (e.g., 'CUST-64166')
-        agent_name (str): AI agent name (e.g., 'FinancePilot AI')
-        action (str): Banking action ('View balance', 'Pay a bill', 'Transfer money')
-        amount (float): Transaction amount in INR (₹)
-        description (str): Optional context
-        record_audit (bool): Whether to record this request into audit_logs.json
-        
-    Returns:
-        dict: Evaluation result containing decision, rule_number, rule_name, reason, and context.
+    Evaluates an AI agent request against the configured business rules.
+
+    Returns a dictionary containing decision, rule, reason, and request details.
     """
+
     clean_cust_id = (customer_id or "").strip()
     clean_agent_name = (agent_name or "").strip()
     clean_action = (action or "").strip()
@@ -109,211 +103,190 @@ def evaluate_request(customer_id, agent_name, action, amount=0.0, description=""
     except (ValueError, TypeError):
         clean_amount = 0.0
 
-    # Retrieve agent record from persistent storage (uses currently configured storage path)
+    if clean_amount < 0:
+        clean_amount = -1.0
+
     agent = storage.find_agent(clean_cust_id, clean_agent_name)
 
-    # -------------------------------------------------------------
-    # RULE 1: UNKNOWN AGENT CHECK (Must be first before any permission checks)
-    # -------------------------------------------------------------
+    def make_result(decision, rule_number, rule_name, reason):
+        """Creates a consistent evaluation result."""
+        return {
+            "decision": decision,
+            "rule_number": rule_number,
+            "rule_name": rule_name,
+            "reason": reason,
+            "customer_id": clean_cust_id,
+            "customer_name": (
+                agent.get("customer_name", clean_cust_id)
+                if agent else clean_cust_id
+            ),
+            "agent_id": agent.get("agent_id", "UNKNOWN") if agent else "UNKNOWN",
+            "agent_name": clean_agent_name,
+            "requested_action": clean_action,
+            "amount": clean_amount,
+            "description": description
+        }
+
+    def finish(result):
+        """Records the decision when audit logging is enabled."""
+        if record_audit:
+            _persist_request_audit(result)
+        return result
+
+    # RULE 1: Unknown agent
     if not agent:
-        result = {
-            "decision": "BLOCK",
-            "rule_number": "RULE 1",
-            "rule_name": "Unknown Agent",
-            "reason": (
-                f"AI Agent '{clean_agent_name}' is not registered under Customer ID '{clean_cust_id}'. "
-                f"Wells Fargo policy mandates blocking all unregistered autonomous entities."
-            ),
-            "customer_id": clean_cust_id,
-            "customer_name": clean_cust_id,
-            "agent_id": "UNKNOWN",
-            "agent_name": clean_agent_name,
-            "requested_action": clean_action,
-            "amount": clean_amount,
-            "description": description
-        }
-        if record_audit:
-            _persist_request_audit(result)
-        return result
+        return finish(make_result(
+            "BLOCK",
+            "RULE 1",
+            "Unknown Agent",
+            (
+                f"Agent '{clean_agent_name}' is not registered for customer "
+                f"'{clean_cust_id}'. Unknown agents are blocked."
+            )
+        ))
 
-    # Agent is known
-    agent_id = agent.get("agent_id", "WF-AGT-???")
-    customer_name = agent.get("customer_name", clean_cust_id)
-    status = agent.get("status", "INACTIVE").upper()
+    agent_id = agent.get("agent_id", "UNKNOWN")
+    status = str(agent.get("status", "INACTIVE")).upper()
     permitted_actions = agent.get("permitted_actions", [])
-    agent_limit = float(agent.get("transaction_limit", storage.COMPANY_CONFIG["default_transaction_limit"]))
-    global_limit = storage.COMPANY_CONFIG["default_transaction_limit"]
-    effective_limit = min(agent_limit, global_limit)
 
-    # -------------------------------------------------------------
-    # RULE 2: REVOKED AGENT CHECK (Must be evaluated before permissions)
-    # -------------------------------------------------------------
+    # RULE 2: Revoked agent
     if status == "REVOKED":
-        revoked_at = agent.get("revoked_at", "Unknown Date")
-        rev_reason = agent.get("revocation_reason", "Customer/Administrator initiated revocation")
-        result = {
-            "decision": "BLOCK",
-            "rule_number": "RULE 2",
-            "rule_name": "Revoked Agent",
-            "reason": (
-                f"Agent '{clean_agent_name}' ({agent_id}) was permanently REVOKED on {revoked_at} "
-                f"(Reason: {rev_reason}). Under Wells Fargo security policies, revoked agents are blocked from all actions."
-            ),
-            "customer_id": clean_cust_id,
-            "customer_name": customer_name,
-            "agent_id": agent_id,
-            "agent_name": clean_agent_name,
-            "requested_action": clean_action,
-            "amount": clean_amount,
-            "description": description
-        }
-        if record_audit:
-            _persist_request_audit(result)
-        return result
+        return finish(make_result(
+            "BLOCK",
+            "RULE 2",
+            "Revoked Agent",
+            (
+                f"Agent '{clean_agent_name}' ({agent_id}) has been revoked. "
+                "All future requests are blocked."
+            )
+        ))
 
-    # -------------------------------------------------------------
-    # RULE 3: ACTIVE STATUS CHECK
-    # -------------------------------------------------------------
+    # RULE 3: Active status
     if status != "ACTIVE":
-        result = {
-            "decision": "BLOCK",
-            "rule_number": "RULE 3",
-            "rule_name": "Inactive Agent Status",
-            "reason": (
-                f"Agent '{clean_agent_name}' ({agent_id}) is currently '{status}'. "
-                f"Only verified agents in ACTIVE standing may interface with banking services."
-            ),
-            "customer_id": clean_cust_id,
-            "customer_name": customer_name,
-            "agent_id": agent_id,
-            "agent_name": clean_agent_name,
-            "requested_action": clean_action,
-            "amount": clean_amount,
-            "description": description
-        }
-        if record_audit:
-            _persist_request_audit(result)
-        return result
+        return finish(make_result(
+            "BLOCK",
+            "RULE 3",
+            "Inactive Agent Status",
+            (
+                f"Agent '{clean_agent_name}' has status '{status}'. "
+                "Only ACTIVE agents may proceed."
+            )
+        ))
 
-    # -------------------------------------------------------------
-    # RULE 7: PERMISSION SCOPE CHECK
-    # -------------------------------------------------------------
-    # Normalize permitted actions for comparison
-    normalized_perms = [p.lower() for p in permitted_actions]
+    # Reject invalid amounts
+    if clean_amount < 0:
+        return finish(make_result(
+            "BLOCK",
+            "RULE 6",
+            "Invalid Transaction Amount",
+            "Transaction amount cannot be negative."
+        ))
+
+    # RULE 7: Permission scope
+    normalized_perms = [
+        str(permission).strip().lower()
+        for permission in permitted_actions
+    ]
+
     if clean_action.lower() not in normalized_perms:
-        result = {
-            "decision": "BLOCK",
-            "rule_number": "RULE 7",
-            "rule_name": "Permission Scope Violation",
-            "reason": (
-                f"Requested action '{clean_action}' is outside the agent's registered permissions "
-                f"({', '.join(permitted_actions)}). Access blocked under Least Privilege policy."
-            ),
-            "customer_id": clean_cust_id,
-            "customer_name": customer_name,
-            "agent_id": agent_id,
-            "agent_name": clean_agent_name,
-            "requested_action": clean_action,
-            "amount": clean_amount,
-            "description": description
-        }
-        if record_audit:
-            _persist_request_audit(result)
-        return result
+        return finish(make_result(
+            "BLOCK",
+            "RULE 7",
+            "Permission Scope Violation",
+            (
+                f"Action '{clean_action}' is outside the agent's registered "
+                f"permissions ({', '.join(permitted_actions)}). Request blocked."
+            )
+        ))
 
-    # -------------------------------------------------------------
-    # RULE 4: SAFE READ-ONLY ACTIONS
-    # -------------------------------------------------------------
-    if clean_action in storage.COMPANY_CONFIG["read_only_actions"]:
-        result = {
-            "decision": "ALLOW",
-            "rule_number": "RULE 4",
-            "rule_name": "Read-Only Action Authorized",
-            "reason": (
-                f"Agent '{clean_agent_name}' is verified and active. '{clean_action}' is a safe read-only "
-                f"banking operation authorized under Rule 4."
-            ),
-            "customer_id": clean_cust_id,
-            "customer_name": customer_name,
-            "agent_id": agent_id,
-            "agent_name": clean_agent_name,
-            "requested_action": clean_action,
-            "amount": clean_amount,
-            "description": description
-        }
-        if record_audit:
-            _persist_request_audit(result)
-        return result
+    # RULE 4: Read-only actions
+    read_only_actions = [
+        item.lower()
+        for item in storage.COMPANY_CONFIG["read_only_actions"]
+    ]
 
-    # -------------------------------------------------------------
-    # SENSITIVE FINANCIAL ACTIONS (Pay a bill, Transfer money)
-    # -------------------------------------------------------------
-    if clean_action in storage.COMPANY_CONFIG["sensitive_actions"]:
-        # RULE 6: Transaction Limit Check
+    if clean_action.lower() in read_only_actions:
+        return finish(make_result(
+            "ALLOW",
+            "RULE 4",
+            "Read-Only Action Authorized",
+            (
+                f"Agent '{clean_agent_name}' is registered and active. "
+                f"'{clean_action}' is a permitted read-only action."
+            )
+        ))
+
+    # RULE 5 and RULE 6: Bill payments
+    if clean_action.lower() == "pay a bill":
+        global_limit = float(
+            storage.COMPANY_CONFIG["default_transaction_limit"]
+        )
+        agent_limit = float(
+            agent.get("transaction_limit", global_limit)
+        )
+        effective_limit = min(global_limit, agent_limit)
+
+        # Above the applicable transaction limit: ask customer.
         if clean_amount > effective_limit:
-            result = {
-                "decision": "ASK CUSTOMER",
-                "rule_number": "RULE 6",
-                "rule_name": "Transaction Limit Exceeded",
-                "reason": (
-                    f"Requested {clean_action} of ₹{clean_amount:,.2f} exceeds configured safety threshold "
-                    f"of ₹{effective_limit:,.2f}. Step-up customer confirmation is required."
-                ),
-                "customer_id": clean_cust_id,
-                "customer_name": customer_name,
-                "agent_id": agent_id,
-                "agent_name": clean_agent_name,
-                "requested_action": clean_action,
-                "amount": clean_amount,
-                "description": description
-            }
-            if record_audit:
-                _persist_request_audit(result)
-            return result
+            return finish(make_result(
+                "ASK CUSTOMER",
+                "RULE 6",
+                "Bill Payment Limit Exceeded",
+                (
+                    f"Bill payment of ₹{clean_amount:,.2f} exceeds the "
+                    f"applicable limit of ₹{effective_limit:,.2f}. "
+                    "Customer confirmation is required."
+                )
+            ))
 
-        # RULE 5: Customer Confirmation for Sensitive Actions
-        result = {
-            "decision": "ASK CUSTOMER",
-            "rule_number": "RULE 5",
-            "rule_name": "Customer Confirmation Required",
-            "reason": (
-                f"'{clean_action}' involves debiting funds or modifying financial commitments. "
-                f"Even though the amount (₹{clean_amount:,.2f}) is within limit (₹{effective_limit:,.2f}), "
-                f"customer confirmation is mandatory under Wells Fargo security policy."
-            ),
-            "customer_id": clean_cust_id,
-            "customer_name": customer_name,
-            "agent_id": agent_id,
-            "agent_name": clean_agent_name,
-            "requested_action": clean_action,
-            "amount": clean_amount,
-            "description": description
-        }
-        if record_audit:
-            _persist_request_audit(result)
-        return result
+        # At or below limit: require explicit pre-authorisation.
+        if agent.get("bill_payment_pre_authorized", False) is True:
+            return finish(make_result(
+                "ALLOW",
+                "RULE 5",
+                "Pre-authorised Bill Payment",
+                (
+                    f"Bill payment of ₹{clean_amount:,.2f} is within the "
+                    f"₹{effective_limit:,.2f} limit and the customer has "
+                    "explicitly pre-authorised bill payments."
+                )
+            ))
 
-    # Fallback for unrecognized action
-    result = {
-        "decision": "BLOCK",
-        "rule_number": "RULE 7",
-        "rule_name": "Unrecognized Banking Action",
-        "reason": f"Action '{clean_action}' is not a recognized Wells Fargo banking operation.",
-        "customer_id": clean_cust_id,
-        "customer_name": customer_name,
-        "agent_id": agent_id,
-        "agent_name": clean_agent_name,
-        "requested_action": clean_action,
-        "amount": clean_amount,
-        "description": description
-    }
-    if record_audit:
-        _persist_request_audit(result)
-    return result
+        return finish(make_result(
+            "ASK CUSTOMER",
+            "RULE 5",
+            "Bill Payment Confirmation Required",
+            (
+                "The bill payment is within the transaction limit, but "
+                "the customer has not explicitly pre-authorised bill payments. "
+                "Customer confirmation is required."
+            )
+        ))
+
+    # RULE 6: Money transfers always require customer confirmation.
+    if clean_action.lower() == "transfer money":
+        return finish(make_result(
+            "ASK CUSTOMER",
+            "RULE 6",
+            "Money Transfer Confirmation Required",
+            (
+                f"Money transfer of ₹{clean_amount:,.2f} requires explicit "
+                "customer confirmation regardless of amount or transaction limit."
+            )
+        ))
+
+    # Any action not recognized by the policy is blocked.
+    return finish(make_result(
+        "BLOCK",
+        "RULE 7",
+        "Unrecognized Banking Action",
+        f"Action '{clean_action}' is not a recognized banking operation."
+    ))
 
 
 def _persist_request_audit(eval_result):
-    """Formats and writes the request evaluation into the persistent audit trail (RULE 8)."""
+    """Writes the evaluation result to the persistent audit log."""
+
     log_entry = {
         "event_type": "REQUEST",
         "customer_id": eval_result.get("customer_id"),
@@ -328,6 +301,8 @@ def _persist_request_audit(eval_result):
         "reason": eval_result.get("reason"),
         "description": eval_result.get("description", "")
     }
+
     storage.log_audit_event(log_entry)
+
     eval_result["timestamp"] = log_entry.get("timestamp")
     eval_result["request_id"] = log_entry.get("request_id")
